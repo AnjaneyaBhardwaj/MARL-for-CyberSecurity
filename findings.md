@@ -9,38 +9,41 @@ This project successfully implemented and evaluated a **Graph Neural Network (GN
 ## 2. Training Stability Fixes
 
 ### Problem Identified
+
 The initial PPO training exhibited severe instability:
+
 - **Loss values:** 2,600 - 7,000+ (should be 0.1 - 10 for stable PPO)
 - **Cause:** Unscaled returns causing exploding MSE loss in the critic
 
 ### Fixes Applied
 
-| Parameter | Before | After | Rationale |
-|-----------|--------|-------|-----------|
-| `UPDATE_EVERY` | 500 | **256** | Faster feedback for policy updates |
-| `REWARD_SCALE` | 1.0 | **0.1** | Scale down large negative rewards (-100 to -200 → -10 to -20) |
-| `VALUE_COEF` | 0.5 | **0.25** | Reduce critic's influence on total loss |
-| Return Normalization | None | **Enabled** | `(returns - mean) / std` before critic loss |
-| Value Clipping | `clamp(-100, 100)` | **Removed** | Unnecessary with normalized returns |
+| Parameter            | Before             | After       | Rationale                                                     |
+| -------------------- | ------------------ | ----------- | ------------------------------------------------------------- |
+| `UPDATE_EVERY`       | 500                | **256**     | Faster feedback for policy updates                            |
+| `REWARD_SCALE`       | 1.0                | **0.1**     | Scale down large negative rewards (-100 to -200 → -10 to -20) |
+| `VALUE_COEF`         | 0.5                | **0.25**    | Reduce critic's influence on total loss                       |
+| Return Normalization | None               | **Enabled** | `(returns - mean) / std` before critic loss                   |
+| Value Clipping       | `clamp(-100, 100)` | **Removed** | Unnecessary with normalized returns                           |
 
 ### Impact on Training
 
-| Metric | Before Fixes | After Fixes |
-|--------|-------------|-------------|
-| **Loss Range** | 2,600 - 7,000+ | **0.12 - 0.22** ✅ |
+| Metric                 | Before Fixes       | After Fixes           |
+| ---------------------- | ------------------ | --------------------- |
+| **Loss Range**         | 2,600 - 7,000+     | **0.12 - 0.22** ✅    |
 | **Training Stability** | Oscillating wildly | Smooth convergence ✅ |
-| **Final Score** | -256.30 | **-129.46** ✅ |
+| **Final Score**        | -256.30            | **-129.46** ✅        |
 
 ## 3. Performance Comparison: GNN vs. Baselines
 
-| Model | Average Reward | Improvement over Initial GNN |
-|:------|:--------------|:-----------------------------|
-| **Optimized GNN (New)** | **-129.46 ± 11.27** | **+49.5%** 🏆 |
-| Initial GNN | -256.30 | Baseline |
-| Baseline MLP | -488.80 | -90.7% (Worse) |
-| _Passive Agent (Sleep)_ | _-100.00_ | _Theoretical Max_ |
+| Model                   | Average Reward      | Improvement over Initial GNN |
+| :---------------------- | :------------------ | :--------------------------- |
+| **Optimized GNN (New)** | **-129.46 ± 11.27** | **+49.5%** 🏆                |
+| Initial GNN             | -256.30             | Baseline                     |
+| Baseline MLP            | -488.80             | -90.7% (Worse)               |
+| _Passive Agent (Sleep)_ | _-100.00_           | _Theoretical Max_            |
 
 ### Detailed Evaluation Results
+
 ```
 Average Reward: -129.46 ± 11.27
 Min Reward:     -154.10
@@ -53,11 +56,11 @@ Max Reward:      -95.50  (Better than SleepAgent!)
 
 We tested the agent against three different types of adversaries. The agent was trained using **domain randomization** (50% B_lineAgent, 50% MeanderAgent).
 
-| Adversary | Type | Initial Score | Optimized Score | Improvement |
-|:----------|:-----|:--------------|:----------------|:------------|
-| **B_lineAgent** | Known | -256.30 | **-129.46** | +49.5% |
-| **MeanderAgent** | Random | -378.32 | *Included in training* | N/A |
-| **SleepAgent** | Passive | -100.00 | -100.00 | - |
+| Adversary        | Type    | Initial Score | Optimized Score        | Improvement |
+| :--------------- | :------ | :------------ | :--------------------- | :---------- |
+| **B_lineAgent**  | Known   | -256.30       | **-129.46**            | +49.5%      |
+| **MeanderAgent** | Random  | -378.32       | _Included in training_ | N/A         |
+| **SleepAgent**   | Passive | -100.00       | -100.00                | -           |
 
 ## 5. Behavioral Analysis
 
@@ -78,6 +81,7 @@ User Subnet → Enterprise Subnet → [DEFENDED] Operational Subnet
 ```
 
 **Rationale:**
+
 1. Defending everything is too expensive (negative reward for each action)
 2. Only the Operational subnet contains critical assets (Op_Server0)
 3. Let attackers waste moves on outer networks while guarding the "crown jewels"
@@ -88,26 +92,29 @@ User Subnet → Enterprise Subnet → [DEFENDED] Operational Subnet
 We attempted to encourage more diverse defensive strategies using reward shaping bonuses:
 
 ### Experiment 1: Strong Diversity Bonuses
-| Bonus | Value | Result |
-|-------|-------|--------|
-| Diversity (new action type) | +0.5 | ❌ Agent spammed Remove on User4 only |
-| Proactive (Remove/Misinform) | +1.0 | ❌ Exploited bonus instead of learning |
-| Perimeter (User/Enterprise) | +0.3 | ❌ Ignored operational subnet |
+
+| Bonus                        | Value | Result                                 |
+| ---------------------------- | ----- | -------------------------------------- |
+| Diversity (new action type)  | +0.5  | ❌ Agent spammed Remove on User4 only  |
+| Proactive (Remove/Misinform) | +1.0  | ❌ Exploited bonus instead of learning |
+| Perimeter (User/Enterprise)  | +0.3  | ❌ Ignored operational subnet          |
 
 **Outcome:** Agent achieved worse performance by gaming the bonus system.
 
-### Experiment 2: Weak Diversity Bonuses  
-| Bonus | Value | Result |
-|-------|-------|--------|
-| Diversity | +0.1 | ❌ Still biased toward Restore only |
-| Proactive | +0.15 | ❌ Agent used Enterprise1 more than Op_Server0 |
-| Operational | +0.2 | ❌ Not enough to override other bonuses |
+### Experiment 2: Weak Diversity Bonuses
+
+| Bonus       | Value | Result                                         |
+| ----------- | ----- | ---------------------------------------------- |
+| Diversity   | +0.1  | ❌ Still biased toward Restore only            |
+| Proactive   | +0.15 | ❌ Agent used Enterprise1 more than Op_Server0 |
+| Operational | +0.2  | ❌ Not enough to override other bonuses        |
 
 **Outcome:** Even small bonuses distorted the learned policy.
 
 ### Conclusion: Simple is Better
 
 The **simple spam penalty** (-2.0 for repeating actions) produces the best results:
+
 - Agent naturally discovers the optimal "castle defense" strategy
 - No bonus exploitation or overfitting
 - Best score: **-129.46** (only 29 points from theoretical maximum)
@@ -119,14 +126,16 @@ The **simple spam penalty** (-2.0 for repeating actions) produces the best resul
 To create a truly adaptive defense system, we implemented **Red Agent (Attacker) Training** using the same GNN-based architecture. This enables adversarial self-play where both agents learn and improve.
 
 ### Architecture
-| Component | Blue Agent (Defender) | Red Agent (Attacker) |
-|:----------|:---------------------|:---------------------|
-| **GNN Encoder** | GraphSAGE (2 layers) | GraphSAGE (2 layers) |
-| **Policy Head** | 256 → 54 actions | 256 → 56 actions |
-| **Training Algorithm** | PPO | PPO |
-| **Opponent** | Mixed (B_line + Meander) | Frozen trained Blue agent |
+
+| Component              | Blue Agent (Defender)    | Red Agent (Attacker)      |
+| :--------------------- | :----------------------- | :------------------------ |
+| **GNN Encoder**        | GraphSAGE (2 layers)     | GraphSAGE (2 layers)      |
+| **Policy Head**        | 256 → 54 actions         | 256 → 56 actions          |
+| **Training Algorithm** | PPO                      | PPO                       |
+| **Opponent**           | Mixed (B_line + Meander) | Frozen trained Blue agent |
 
 ### Training Setup
+
 - **Blue Agent:** Trained with domain randomization, then frozen
 - **Red Agent:** Learns to attack the trained Blue defender
 - **Episodes:** 10,000
@@ -135,13 +144,16 @@ To create a truly adaptive defense system, we implemented **Red Agent (Attacker)
   - ChallengeWrapper with `agent_name='Red'` provides Red-perspective rewards directly
 
 ### Expected Attack Patterns
+
 The Red agent is expected to learn a multi-phase attack strategy:
+
 1. **Reconnaissance:** DiscoverRemoteSystems, DiscoverNetworkServices
 2. **Exploitation:** ExploitRemoteService on vulnerable User/Enterprise hosts
 3. **Lateral Movement:** Progress through User → Enterprise → Operational subnets
 4. **Impact:** Execute final attack on Op_Server0 (critical asset)
 
 ### Models Saved
+
 - `red_gnn_actor_best.pth` - Best performing attacker
 - `red_gnn_actor_final.pth` - Final trained attacker
 - `red_gnn_critic_best.pth`, `red_gnn_critic_final.pth` - Critic networks
@@ -149,11 +161,13 @@ The Red agent is expected to learn a multi-phase attack strategy:
 ## 7. Key Lessons Learned
 
 ### Why the Initial Training Failed
+
 1. **Unscaled Returns:** CybORG returns large negative rewards (-2 to -5 per step). Over 50 steps, this accumulates to -100 to -250. MSE loss on these values: 10,000+ per update.
 2. **Slow Updates:** Updating every 500 steps meant the agent collected data from ~10 different episodes (with different adversaries) before learning, creating noisy gradients.
 3. **Overpowered Critic:** With `VALUE_COEF = 0.5`, the exploding critic loss dominated the total loss, drowning out the policy gradient signal.
 
 ### The Fix Philosophy
+
 - **Scale rewards to a manageable range** (~±10) to prevent gradient explosion
 - **Normalize returns** so the critic learns relative value differences, not absolute magnitudes
 - **Update more frequently** to reduce variance in policy gradients
