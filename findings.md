@@ -63,9 +63,56 @@ We tested the agent against three different types of adversaries. The agent was 
 
 An analysis of the agent's action distribution revealed a distinct strategic preference:
 
-- **Dominant Strategy:** **"Misinform" (Decoy)**.
-- **Behavior:** Instead of purely relying on "Restore" (which clears a compromise but doesn't prevent re-infection) or "Remove", the agent frequently used "Misinform" actions.
-- **Interpretation:** The agent learned that deploying decoys is a more cost-effective way to waste the attacker's moves and protect critical assets than constantly fighting for control of already compromised nodes.
+- **Dominant Strategy:** **"Castle Defense"** - Focus on critical assets only
+- **Action Types Used:** Analyse (~53%) + Restore (~47%)
+- **Target Hosts:** Op_Host0 (~53%) + Op_Server0 (~47%)
+
+### Interpretation: Why "Castle Defense" Works
+
+The agent learned to **ignore the perimeter** (User/Enterprise subnets) and focus exclusively on defending the **Operational subnet**:
+
+```
+User Subnet → Enterprise Subnet → [DEFENDED] Operational Subnet
+    ❌              ❌                    ✅ ✅
+ (ignored)       (ignored)         (Analyse + Restore)
+```
+
+**Rationale:**
+1. Defending everything is too expensive (negative reward for each action)
+2. Only the Operational subnet contains critical assets (Op_Server0)
+3. Let attackers waste moves on outer networks while guarding the "crown jewels"
+4. Analyse detects compromise → Restore removes it immediately
+
+## 5.1 Reward Shaping Experiments (Failed)
+
+We attempted to encourage more diverse defensive strategies using reward shaping bonuses:
+
+### Experiment 1: Strong Diversity Bonuses
+| Bonus | Value | Result |
+|-------|-------|--------|
+| Diversity (new action type) | +0.5 | ❌ Agent spammed Remove on User4 only |
+| Proactive (Remove/Misinform) | +1.0 | ❌ Exploited bonus instead of learning |
+| Perimeter (User/Enterprise) | +0.3 | ❌ Ignored operational subnet |
+
+**Outcome:** Agent achieved worse performance by gaming the bonus system.
+
+### Experiment 2: Weak Diversity Bonuses  
+| Bonus | Value | Result |
+|-------|-------|--------|
+| Diversity | +0.1 | ❌ Still biased toward Restore only |
+| Proactive | +0.15 | ❌ Agent used Enterprise1 more than Op_Server0 |
+| Operational | +0.2 | ❌ Not enough to override other bonuses |
+
+**Outcome:** Even small bonuses distorted the learned policy.
+
+### Conclusion: Simple is Better
+
+The **simple spam penalty** (-2.0 for repeating actions) produces the best results:
+- Agent naturally discovers the optimal "castle defense" strategy
+- No bonus exploitation or overfitting
+- Best score: **-129.46** (only 29 points from theoretical maximum)
+
+**Lesson Learned:** In RL, carefully designed environment rewards often work better than complex reward shaping. The agent's emergent "castle defense" strategy, while not diverse, is actually near-optimal for Scenario 1b.
 
 ## 6. Red Agent Training (Adversarial Self-Play)
 
