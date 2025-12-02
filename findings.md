@@ -152,11 +152,63 @@ The Red agent is expected to learn a multi-phase attack strategy:
 3. **Lateral Movement:** Progress through User → Enterprise → Operational subnets
 4. **Impact:** Execute final attack on Op_Server0 (critical asset)
 
+### Red Agent Action-Reward Analysis
+
+After training, we analyzed which actions the Red agent learned to use and their effectiveness:
+
+| Action Type              | Times Used | Avg Reward | Interpretation                         |
+| :----------------------- | ---------: | ---------: | :------------------------------------- |
+| **PrivilegeEscalate**    |     10,976 |     +0.429 | 🏆 Most effective attack action        |
+| **Sleep**                |     10,694 |     +0.415 | Strategic waiting (no cost)            |
+| **ExploitRemoteService** |      9,177 |     +0.411 | Successful exploitation attempts       |
+| **Impact**               |      9,751 |     +0.368 | Final attack on compromised hosts      |
+| **DiscoverNetworkSvc**   |      2,081 |     +0.389 | Reconnaissance (used sparingly)        |
+| **DiscoverRemoteSys**    |     18,314 |     +0.203 | Lowest reward (often redundant)        |
+| **InvalidAction**        |    439,007 |     +0.328 | ⚠️ High count indicates masking issues |
+
+**Key Observations:**
+
+1. **PrivilegeEscalate is the most rewarding action** (+0.429 avg) - The Red agent learned that escalating privileges on compromised hosts yields the highest payoff.
+
+2. **High InvalidAction count (439k)** - This indicates the action masking may not be fully effective, or the agent is attempting actions on hosts it hasn't yet compromised. This is an area for improvement.
+
+3. **DiscoverRemoteSystems is overused** - With 18k uses but only +0.203 reward, the agent may be over-exploring when it should be exploiting.
+
+4. **Balanced attack strategy** - The agent uses a mix of exploitation (ExploitRemoteService), privilege escalation, and impact actions, suggesting it learned a multi-phase attack pattern.
+
 ### Models Saved
 
 - `red_gnn_actor_best.pth` - Best performing attacker
 - `red_gnn_actor_final.pth` - Final trained attacker
 - `red_gnn_critic_best.pth`, `red_gnn_critic_final.pth` - Critic networks
+
+## 6.1 Adversarial Self-Play Training
+
+After training baseline Blue and Red agents, we implemented **iterative adversarial self-play** to create stronger agents through competition:
+
+### Training Schedule
+
+| Iteration | Agent Trained | Opponent Used            | Model Saved                  |
+| :-------- | :------------ | :----------------------- | :--------------------------- |
+| Baseline  | 🔵 Blue       | B_line + Meander (50/50) | `robust_gnn_actor.pth`       |
+| Baseline  | 🔴 Red        | Frozen Blue baseline     | `red_gnn_actor_final.pth`    |
+| Iter 1    | 🔵 Blue       | Frozen Red baseline      | `blue_actor_iter1_final.pth` |
+| Iter 2    | 🔴 Red        | Frozen Blue iter1        | `red_actor_iter2_final.pth`  |
+| Iter 3    | 🔵 Blue       | Frozen Red iter2         | `blue_actor_iter3_final.pth` |
+
+### Expected Benefits
+
+1. **Co-evolution:** Each agent learns to counter the other's strategies
+2. **Robustness:** Blue agent trained against learned attackers (not just scripted)
+3. **Emergent strategies:** Novel attack/defense patterns may emerge
+4. **Curriculum learning:** Progressive difficulty as opponents improve
+
+### Configuration
+
+- **Episodes per iteration:** 5,000
+- **Update frequency:** 256 steps (Blue), 512 steps (Red)
+- **Warm-start:** Each iteration loads weights from previous best model
+- **PPO settings:** Same as baseline training
 
 ## 7. Key Lessons Learned
 
@@ -172,6 +224,31 @@ The Red agent is expected to learn a multi-phase attack strategy:
 - **Normalize returns** so the critic learns relative value differences, not absolute magnitudes
 - **Update more frequently** to reduce variance in policy gradients
 - **Balance actor/critic** by reducing the critic's coefficient
+
+### Why Reward Scaling (×0.1) Helps Blue Agent Training
+
+The Blue agent receives large negative rewards from CybORG (typically -2 to -5 per step, accumulating to -100 to -250 per episode). Scaling by 0.1 provides several benefits:
+
+| Problem Without Scaling | Solution With 0.1 Scale |
+| :---------------------- | :---------------------- |
+| **Exploding Gradients:** MSE loss on returns of -200 → loss = 40,000 | Returns of -20 → loss = 400 (100× smaller) |
+| **Unstable Critic:** Large target values cause wild weight updates | Smaller targets allow gradual, stable learning |
+| **Dominated Loss:** Critic loss drowns out actor's policy gradient | Balanced loss components (actor ≈ critic contribution) |
+| **Slow Convergence:** Optimizer struggles with huge gradients | Smooth optimization landscape, faster convergence |
+
+**Mathematical Intuition:**
+
+```
+Without scaling:  Return = -200  →  Critic predicts V = -180  →  MSE = (200-180)² = 400
+With 0.1 scale:   Return = -20   →  Critic predicts V = -18   →  MSE = (20-18)² = 4
+```
+
+The 100× reduction in loss magnitude keeps gradients in a healthy range where Adam optimizer works optimally (typically gradients should be ~0.01 to ~1.0).
+
+**Note:** We do NOT scale Red agent rewards because:
+1. Red receives mostly positive rewards (successful attacks)
+2. Red's rewards are already in a reasonable range (~0 to +1 per action)
+3. The Red environment (`MiniCageRed`) provides naturally balanced rewards
 
 ## 8. Future Work
 
