@@ -154,6 +154,8 @@ The implementation is provided in Jupyter Notebooks:
    jupyter notebook anjaneya_sfaham_DDQN_final_Project.ipynb
    ```
    This notebook contains the complete GNN-based PPO implementation with both Blue and Red agent training.
+   
+   **Note:** The notebook filename references "DDQN" from an earlier project iteration, but the current implementation uses GNN-based PPO.
 
 2. **Checkpoint Version:**
    ```bash
@@ -165,8 +167,8 @@ The implementation is provided in Jupyter Notebooks:
 
 1. Install dependencies:
    ```bash
-   pip install torch torch-geometric numpy matplotlib
-   # Install CybORG following its official documentation
+   pip install torch torch-geometric numpy matplotlib jupyter
+   # Install CybORG from https://github.com/cage-challenge/CybORG
    ```
 
 2. Open the main notebook:
@@ -228,7 +230,7 @@ The Blue agent receives large negative rewards from CybORG (typically -2 to -5 p
 
 ## Project Context
 
-This project was developed as part of CSE-556 (Multi-Agent Reinforcement Learning for Cybersecurity). For detailed findings and analysis, see [findings.md](findings.md).
+This project was developed as part of CSE-556 (Multi-Agent Reinforcement Learning for Cybersecurity). For detailed findings and analysis, including comprehensive training logs, experimental results, and in-depth behavioral analysis, see [findings.md](findings.md).
 
 ## License
 
